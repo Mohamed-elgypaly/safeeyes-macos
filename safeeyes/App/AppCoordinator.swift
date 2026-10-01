@@ -1,25 +1,56 @@
 import Foundation
+import AppKit
 
 @MainActor
 final class AppCoordinator {
     static let shared = AppCoordinator()
 
-    #if DEBUG
-    private var debugIdleTimer: Timer?
-    private let idleMonitor = IdleMonitor()
-    #endif
+    let settingsManager: SettingsManager
+    let idleMonitor: IdleMonitor
+    let timeSource: SystemTimeSource
+    let notificationService: NotificationService
+    let overlay: OverlayPresenting
+    let timerManager: TimerManager
+    var menuBarController: MenuBarController?
 
-    init() {}
+    init() {
+        let settings = SettingsManager()
+        let idle = IdleMonitor()
+        let time = SystemTimeSource()
+        let notifications = NotificationService.shared
+        let overlayPresenter = LoggingOverlay()
+
+        self.settingsManager = settings
+        self.idleMonitor = idle
+        self.timeSource = time
+        self.notificationService = notifications
+        self.overlay = overlayPresenter
+
+        self.timerManager = TimerManager(
+            settings: settings,
+            idle: idle,
+            time: time,
+            notifier: notifications,
+            overlay: overlayPresenter
+        )
+    }
 
     func start() {
         Log.app.info("SafeEyes AppCoordinator started")
 
-        #if DEBUG
-        debugIdleTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            let idle = self.idleMonitor.secondsSinceLastInput()
-            Log.idle.debug("Current idle seconds: \(idle, privacy: .public)")
+        // Install menu bar controller
+        let menuBar = MenuBarController(timer: timerManager) { [weak self] in
+            self?.openSettings()
         }
-        #endif
+        menuBar.install()
+        self.menuBarController = menuBar
+
+        // Start timer loop
+        timerManager.start()
+    }
+
+    func openSettings() {
+        Log.app.info("Open settings requested")
+        // Will be wired in Step 8 to SettingsWindowController
     }
 }
