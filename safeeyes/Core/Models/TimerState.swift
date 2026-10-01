@@ -10,11 +10,18 @@ public struct PausedSnapshot: Equatable {
     public var remaining: TimeInterval
     public var shortBreaksSinceLong: Int
     public var preBreakKind: BreakKind?
+    public var pausedAt: Date?
 
-    public init(remaining: TimeInterval, shortBreaksSinceLong: Int, preBreakKind: BreakKind? = nil) {
+    public init(
+        remaining: TimeInterval,
+        shortBreaksSinceLong: Int,
+        preBreakKind: BreakKind? = nil,
+        pausedAt: Date? = nil
+    ) {
         self.remaining = remaining
         self.shortBreaksSinceLong = shortBreaksSinceLong
         self.preBreakKind = preBreakKind
+        self.pausedAt = pausedAt
     }
 }
 
