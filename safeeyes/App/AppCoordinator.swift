@@ -33,10 +33,20 @@ final class AppCoordinator {
             notifier: notifications,
             overlay: overlayPresenter
         )
+
+        // Route notification banner actions to TimerManager
+        notifications.onAction = { [weak self] event in
+            self?.timerManager.send(event)
+        }
     }
 
     func start() {
         Log.app.info("SafeEyes AppCoordinator started")
+
+        // Request notification authorization asynchronously
+        Task {
+            _ = await notificationService.requestAuthorization()
+        }
 
         // Install menu bar controller
         let menuBar = MenuBarController(timer: timerManager) { [weak self] in
@@ -51,6 +61,5 @@ final class AppCoordinator {
 
     func openSettings() {
         Log.app.info("Open settings requested")
-        // Will be wired in Step 8 to SettingsWindowController
     }
 }
