@@ -9,7 +9,7 @@ final class AppCoordinator {
     let idleMonitor: IdleMonitor
     let timeSource: SystemTimeSource
     let notificationService: NotificationService
-    let overlay: OverlayPresenting
+    let overlayWindowManager: OverlayWindowManager
     let timerManager: TimerManager
     var menuBarController: MenuBarController?
 
@@ -18,21 +18,24 @@ final class AppCoordinator {
         let idle = IdleMonitor()
         let time = SystemTimeSource()
         let notifications = NotificationService.shared
-        let overlayPresenter = LoggingOverlay()
+        let overlay = OverlayWindowManager(settingsManager: settings)
 
         self.settingsManager = settings
         self.idleMonitor = idle
         self.timeSource = time
         self.notificationService = notifications
-        self.overlay = overlayPresenter
+        self.overlayWindowManager = overlay
 
         self.timerManager = TimerManager(
             settings: settings,
             idle: idle,
             time: time,
             notifier: notifications,
-            overlay: overlayPresenter
+            overlay: overlay
         )
+
+        // Configure timerManager on overlay window manager
+        overlay.configure(timerManager: timerManager)
 
         // Route notification banner actions to TimerManager
         notifications.onAction = { [weak self] event in
