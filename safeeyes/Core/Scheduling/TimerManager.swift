@@ -65,7 +65,7 @@ public final class TimerManager: ObservableObject {
         lastTickDate = time.now
 
         let newTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 self?.performTick()
             }
         }

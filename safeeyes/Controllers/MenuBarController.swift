@@ -33,7 +33,14 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Observe timer state changes to refresh menu bar icon and text
         timer.$state
-            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
+        // Ensure 1 Hz live countdown updates on RunLoop.main in .common mode while the menu is tracked/open
+        Timer.publish(every: 1.0, on: .main, in: .common)
+            .autoconnect()
             .sink { [weak self] _ in
                 self?.refresh()
             }
@@ -82,6 +89,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         updateStatusText()
         updatePauseResumeMenu()
         updateSkipAndQuitItems()
+        statusItem?.menu?.update()
     }
 
     // MARK: - NSMenuDelegate
@@ -113,6 +121,41 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         return NSLocalizedString(key, comment: "")
     }
 
+    // MARK: - Typography & Title Formatting
+
+    private func setItemTitle(
+        _ item: NSMenuItem,
+        title: String,
+        font: NSFont = NSFont.menuBarFont(ofSize: 0),
+        isSecondary: Bool = false
+    ) {
+        item.title = title
+
+        let isArabic: Bool = {
+            if let saved = UserDefaults.standard.string(forKey: "appLanguage") {
+                return saved == "ar"
+            }
+            if let langs = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+               let first = langs.first {
+                return first.hasPrefix("ar")
+            }
+            return Locale.preferredLanguages.first?.hasPrefix("ar") == true
+        }()
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.baseWritingDirection = isArabic ? .rightToLeft : .leftToRight
+        paragraphStyle.alignment = .natural
+
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle
+        ]
+        if isSecondary {
+            attributes[.foregroundColor] = NSColor.secondaryLabelColor
+        }
+        item.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+    }
+
     // MARK: - UI Updates
 
     private func updateIcon() {
@@ -133,87 +176,92 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func updateStaticMenuTitles() {
-        takeBreakItem.title = loc("Take a Break Now")
-        shortBreakItem.title = loc("Short Break")
-        longBreakItem.title = loc("Long Break")
-        skipBreakItem.title = loc("Skip Next Break")
-        settingsItem.title = loc("Settings…")
-        aboutItem.title = loc("About SafeEyes")
-        quitItem.title = loc("Quit SafeEyes")
+        setItemTitle(takeBreakItem, title: loc("Take a Break Now"))
+        setItemTitle(shortBreakItem, title: loc("Short Break"))
+        setItemTitle(longBreakItem, title: loc("Long Break"))
+        setItemTitle(skipBreakItem, title: loc("Skip Next Break"))
+        setItemTitle(settingsItem, title: loc("Settings…"))
+        setItemTitle(aboutItem, title: loc("About SafeEyes"))
+        setItemTitle(quitItem, title: loc("Quit SafeEyes"))
     }
 
     private func updateStatusText() {
+        let statusFont = NSFont.systemFont(ofSize: 14, weight: .medium)
         switch timer.state {
         case .working(let remaining, _):
             let format = loc("Next break in %@")
-            statusMenuItem.title = String(format: format, formatTime(remaining))
+            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
 
         case .preBreak(let kind, let remaining, _):
             let format = (kind == .short)
                 ? loc("Short break in %@")
                 : loc("Long break in %@")
-            statusMenuItem.title = String(format: format, formatTime(remaining))
+            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
 
         case .onBreak(let kind, let remaining, _, _):
             let format = (kind == .short)
                 ? loc("On a short break (%@)")
                 : loc("On a long break (%@)")
-            statusMenuItem.title = String(format: format, formatTime(remaining))
+            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
 
         case .paused(let reason, _):
             switch reason {
             case .idle:
-                statusMenuItem.title = loc("Paused (idle)")
+                setItemTitle(statusMenuItem, title: loc("Paused (idle)"), font: statusFont, isSecondary: true)
             case .user(let until):
                 if let until = until {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
                     let format = loc("Paused until %@")
-                    statusMenuItem.title = String(format: format, formatter.string(from: until))
+                    setItemTitle(statusMenuItem, title: String(format: format, formatter.string(from: until)), font: statusFont, isSecondary: true)
                 } else {
-                    statusMenuItem.title = loc("Paused")
+                    setItemTitle(statusMenuItem, title: loc("Paused"), font: statusFont, isSecondary: true)
                 }
             case .system:
-                statusMenuItem.title = loc("Paused (system)")
+                setItemTitle(statusMenuItem, title: loc("Paused (system)"), font: statusFont, isSecondary: true)
             }
 
         case .disabled:
-            statusMenuItem.title = loc("SafeEyes Disabled")
+            setItemTitle(statusMenuItem, title: loc("SafeEyes Disabled"), font: statusFont, isSecondary: true)
         }
     }
 
     private func updatePauseResumeMenu() {
         switch timer.state {
         case .paused:
-            pauseResumeItem.title = loc("Resume")
+            setItemTitle(pauseResumeItem, title: loc("Resume"))
             pauseResumeItem.target = self
             pauseResumeItem.action = #selector(resumeClicked)
             pauseResumeItem.submenu = nil
         default:
-            pauseResumeItem.title = loc("Pause")
+            setItemTitle(pauseResumeItem, title: loc("Pause"))
             pauseResumeItem.target = nil
             pauseResumeItem.action = nil
 
             let pauseSubmenu = NSMenu()
 
-            let m30 = NSMenuItem(title: loc("30 Minutes"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m30 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m30.tag = 30
             m30.target = self
+            setItemTitle(m30, title: loc("30 Minutes"))
             pauseSubmenu.addItem(m30)
 
-            let m60 = NSMenuItem(title: loc("1 Hour"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m60 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m60.tag = 60
             m60.target = self
+            setItemTitle(m60, title: loc("1 Hour"))
             pauseSubmenu.addItem(m60)
 
-            let m120 = NSMenuItem(title: loc("2 Hours"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m120 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m120.tag = 120
             m120.target = self
+            setItemTitle(m120, title: loc("2 Hours"))
             pauseSubmenu.addItem(m120)
 
-            let mForever = NSMenuItem(title: loc("Until I Resume"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let mForever = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             mForever.tag = 0
             mForever.target = self
+            setItemTitle(mForever, title: loc("Until I Resume"))
             pauseSubmenu.addItem(mForever)
 
             pauseResumeItem.submenu = pauseSubmenu
