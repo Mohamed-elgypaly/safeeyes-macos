@@ -1,9 +1,12 @@
 import Foundation
 import Combine
 import SwiftUI
+import AppKit
 
 @MainActor
 public final class SettingsViewModel: ObservableObject {
+    public static let appleLanguagesKey = "AppleLanguages"
+
     private let settingsManager: SettingsStoring
     private let loginItemService: LoginItemControlling
 
@@ -53,6 +56,14 @@ public final class SettingsViewModel: ObservableObject {
     }
     @Published public private(set) var loginItemRequiresApproval: Bool = false
 
+    // MARK: - Language Tab / Picker
+    @Published public var selectedLanguage: String {
+        didSet {
+            guard !isPulling else { return }
+            handleLanguageSelection(selectedLanguage)
+        }
+    }
+
     /// Tracks whether postpone should be disabled in the UI (strict mode overrides it)
     public var isPostponeDisabled: Bool {
         strictMode
@@ -81,9 +92,85 @@ public final class SettingsViewModel: ObservableObject {
         self.playSounds = s.playSounds
         self.showExercises = s.showExercises
         self.launchAtLogin = s.launchAtLogin
+        self.selectedLanguage = Self.detectInitialLanguage()
 
         // Reconcile with system login item status on init
         reconcileLoginItem()
+    }
+
+    // MARK: - Language Management
+
+    private static func detectInitialLanguage() -> String {
+        guard let languages = UserDefaults.standard.array(forKey: appleLanguagesKey) as? [String],
+              let first = languages.first else {
+            return "system"
+        }
+        if first.hasPrefix("ar") {
+            return "ar"
+        } else if first.hasPrefix("en") {
+            return "en"
+        } else {
+            return "system"
+        }
+    }
+
+    private func handleLanguageSelection(_ lang: String) {
+        if lang == "system" {
+            UserDefaults.standard.removeObject(forKey: Self.appleLanguagesKey)
+        } else {
+            UserDefaults.standard.set([lang], forKey: Self.appleLanguagesKey)
+        }
+        UserDefaults.standard.synchronize()
+
+        promptRestart()
+    }
+
+    private func loc(_ key: String) -> String {
+        let lang = selectedLanguage
+        if lang == "ar" || (lang == "system" && Locale.preferredLanguages.first?.hasPrefix("ar") == true) {
+            if let path = Bundle.main.path(forResource: "ar", ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: key, value: key, table: nil)
+            }
+        } else if lang == "en" {
+            if let path = Bundle.main.path(forResource: "en", ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: key, value: key, table: nil)
+            }
+        }
+        return NSLocalizedString(key, comment: "")
+    }
+
+    public func promptRestart() {
+        let alert = NSAlert()
+        alert.messageText = loc("Restart Required")
+        alert.informativeText = loc("Please restart SafeEyes for language changes to take full effect across the entire application (including the Menu Bar).")
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: loc("Restart Now"))
+        alert.addButton(withTitle: loc("Later"))
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            relaunchApplication()
+        }
+    }
+
+    private func relaunchApplication() {
+        let bundleURL = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: bundleURL, configuration: config) { _, _ in
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
+        }
+        // Fallback for command line execution
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-n", Bundle.main.bundlePath]
+            try? process.run()
+            NSApp.terminate(nil)
+        }
     }
 
     // MARK: - Login Item Management
@@ -158,6 +245,7 @@ public final class SettingsViewModel: ObservableObject {
         playSounds = s.playSounds
         showExercises = s.showExercises
         launchAtLogin = s.launchAtLogin
+        selectedLanguage = Self.detectInitialLanguage()
     }
 
     // MARK: - Actions
@@ -166,6 +254,14 @@ public final class SettingsViewModel: ObservableObject {
         settingsManager.reset()
         pullFromSettings()
         reconcileLoginItem()
+
+        if selectedLanguage != "system" {
+            isPulling = true
+            selectedLanguage = "system"
+            UserDefaults.standard.removeObject(forKey: Self.appleLanguagesKey)
+            UserDefaults.standard.synchronize()
+            isPulling = false
+        }
     }
 
     /// Formatted display of long break duration in minutes

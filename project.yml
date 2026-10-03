@@ -53,3 +53,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.safeeyes.appTests
         ENABLE_HARDENED_RUNTIME: NO
         ENABLE_APP_SANDBOX: NO
+        GENERATE_INFOPLIST_FILE: YES

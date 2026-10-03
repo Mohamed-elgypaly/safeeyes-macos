@@ -36,8 +36,8 @@ public final class TimerManager: ObservableObject {
         // Observe settings changes
         settings.settingsPublisher
             .dropFirst()
-            .sink { [weak self] _ in
-                self?.send(.settingsChanged)
+            .sink { [weak self] newSettings in
+                self?.send(.settingsChanged, overrideSettings: newSettings)
             }
             .store(in: &cancellables)
     }
@@ -80,11 +80,11 @@ public final class TimerManager: ObservableObject {
         state = .disabled
     }
 
-    public func send(_ event: SchedulerEvent) {
+    public func send(_ event: SchedulerEvent, overrideSettings: AppSettings? = nil) {
         let (newState, effects) = BreakScheduler.reduce(
             state: state,
             event: event,
-            settings: settings.settings,
+            settings: overrideSettings ?? settings.settings,
             now: time.now
         )
         self.state = newState

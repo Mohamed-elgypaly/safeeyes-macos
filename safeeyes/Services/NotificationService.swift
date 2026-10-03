@@ -39,10 +39,13 @@ public final class NotificationService: NSObject, NotificationScheduling, UNUser
         let center = UNUserNotificationCenter.current()
 
         let content = UNMutableNotificationContent()
-        let kindName = (kind == .short) ? "Short" : "Long"
-        content.title = "SafeEyes Break Notice"
+        content.title = NSLocalizedString("SafeEyes Break Notice", comment: "")
         let secondsInt = max(1, Int(leadSeconds))
-        content.body = "\(kindName) break will start in \(secondsInt) second\(secondsInt == 1 ? "" : "s"). Prepare to rest your eyes."
+        let kindStr = (kind == .short)
+            ? NSLocalizedString("Short", comment: "")
+            : NSLocalizedString("Long", comment: "")
+        let bodyFormat = NSLocalizedString("%@ break will start in %ld seconds. Prepare to rest your eyes.", comment: "")
+        content.body = String(format: bodyFormat, kindStr, secondsInt)
         content.sound = .default
         content.categoryIdentifier = Self.categoryIdentifier
 
@@ -80,12 +83,12 @@ public final class NotificationService: NSObject, NotificationScheduling, UNUser
     private func setupCategories(in center: UNUserNotificationCenter) {
         let skipAction = UNNotificationAction(
             identifier: Self.actionSkipIdentifier,
-            title: "Skip",
+            title: NSLocalizedString("Skip", comment: ""),
             options: []
         )
         let postponeAction = UNNotificationAction(
             identifier: Self.actionPostponeIdentifier,
-            title: "Postpone",
+            title: NSLocalizedString("Postpone", comment: ""),
             options: []
         )
 

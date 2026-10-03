@@ -36,7 +36,7 @@ public struct BreakView: View {
                 CountdownRing(
                     progress: viewModel.progress,
                     displayText: viewModel.formattedRemaining,
-                    unitText: viewModel.remainingSeconds > 60 ? "remaining" : "seconds",
+                    unitText: viewModel.remainingSeconds > 60 ? "" : "seconds",
                     diameter: 220
                 )
 
@@ -47,12 +47,12 @@ public struct BreakView: View {
                             Image(systemName: exercise.symbol)
                                 .font(.system(size: 20))
                                 .foregroundColor(.cyan)
-                            Text(exercise.title)
+                            Text(LocalizedStringKey(exercise.title))
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                         }
 
-                        Text(exercise.instruction)
+                        Text(LocalizedStringKey(exercise.instruction))
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)

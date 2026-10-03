@@ -10,18 +10,22 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     // Retained menu item references for dynamic updates
     private let statusMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let takeBreakItem = NSMenuItem(title: "Take a Break Now", action: nil, keyEquivalent: "")
-    private let pauseResumeItem = NSMenuItem(title: "Pause", action: nil, keyEquivalent: "")
-    private let skipBreakItem = NSMenuItem(title: "Skip Next Break", action: #selector(skipClicked), keyEquivalent: "")
-    private let settingsItem = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
-    private let aboutItem = NSMenuItem(title: "About SafeEyes", action: #selector(aboutClicked), keyEquivalent: "")
-    private let quitItem = NSMenuItem(title: "Quit SafeEyes", action: #selector(quitClicked), keyEquivalent: "q")
+    private let takeBreakItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let shortBreakItem = NSMenuItem(title: "", action: #selector(takeShortBreak), keyEquivalent: "")
+    private let longBreakItem = NSMenuItem(title: "", action: #selector(takeLongBreak), keyEquivalent: "")
+    private let pauseResumeItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let skipBreakItem = NSMenuItem(title: "", action: #selector(skipClicked), keyEquivalent: "")
+    private let settingsItem = NSMenuItem(title: "", action: #selector(settingsClicked), keyEquivalent: ",")
+    private let aboutItem = NSMenuItem(title: "", action: #selector(aboutClicked), keyEquivalent: "")
+    private let quitItem = NSMenuItem(title: "", action: #selector(quitClicked), keyEquivalent: "q")
 
     public init(timer: TimerManager, onOpenSettings: @escaping () -> Void) {
         self.timer = timer
         self.onOpenSettings = onOpenSettings
         super.init()
 
+        shortBreakItem.target = self
+        longBreakItem.target = self
         skipBreakItem.target = self
         settingsItem.target = self
         aboutItem.target = self
@@ -49,14 +53,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Take a Break Now Submenu
         let takeBreakSubmenu = NSMenu()
-        let shortItem = NSMenuItem(title: "Short Break", action: #selector(takeShortBreak), keyEquivalent: "")
-        shortItem.target = self
-        takeBreakSubmenu.addItem(shortItem)
-
-        let longItem = NSMenuItem(title: "Long Break", action: #selector(takeLongBreak), keyEquivalent: "")
-        longItem.target = self
-        takeBreakSubmenu.addItem(longItem)
-
+        takeBreakSubmenu.addItem(shortBreakItem)
+        takeBreakSubmenu.addItem(longBreakItem)
         takeBreakItem.submenu = takeBreakSubmenu
         menu.addItem(takeBreakItem)
 
@@ -80,6 +78,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     public func refresh() {
         updateIcon()
+        updateStaticMenuTitles()
         updateStatusText()
         updatePauseResumeMenu()
         updateSkipAndQuitItems()
@@ -89,6 +88,24 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     public func menuWillOpen(_ menu: NSMenu) {
         refresh()
+    }
+
+    // MARK: - Localization Helper
+
+    private func loc(_ key: String) -> String {
+        if let langs = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+           let first = langs.first {
+            if first.hasPrefix("ar"),
+               let path = Bundle.main.path(forResource: "ar", ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: key, value: key, table: nil)
+            } else if first.hasPrefix("en"),
+                      let path = Bundle.main.path(forResource: "en", ofType: "lproj"),
+                      let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: key, value: key, table: nil)
+            }
+        }
+        return NSLocalizedString(key, comment: "")
     }
 
     // MARK: - UI Updates
@@ -110,66 +127,86 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         button.image = image
     }
 
+    private func updateStaticMenuTitles() {
+        takeBreakItem.title = loc("Take a Break Now")
+        shortBreakItem.title = loc("Short Break")
+        longBreakItem.title = loc("Long Break")
+        skipBreakItem.title = loc("Skip Next Break")
+        settingsItem.title = loc("Settings…")
+        aboutItem.title = loc("About SafeEyes")
+        quitItem.title = loc("Quit SafeEyes")
+    }
+
     private func updateStatusText() {
         switch timer.state {
         case .working(let remaining, _):
-            statusMenuItem.title = "Next break in \(formatTime(remaining))"
+            let format = loc("Next break in %@")
+            statusMenuItem.title = String(format: format, formatTime(remaining))
+
         case .preBreak(let kind, let remaining, _):
-            let kindStr = (kind == .short) ? "Short" : "Long"
-            statusMenuItem.title = "\(kindStr) break in \(formatTime(remaining))"
+            let format = (kind == .short)
+                ? loc("Short break in %@")
+                : loc("Long break in %@")
+            statusMenuItem.title = String(format: format, formatTime(remaining))
+
         case .onBreak(let kind, let remaining, _, _):
-            let kindStr = (kind == .short) ? "Short" : "Long"
-            statusMenuItem.title = "On a \(kindStr.lowercased()) break (\(formatTime(remaining)))"
+            let format = (kind == .short)
+                ? loc("On a short break (%@)")
+                : loc("On a long break (%@)")
+            statusMenuItem.title = String(format: format, formatTime(remaining))
+
         case .paused(let reason, _):
             switch reason {
             case .idle:
-                statusMenuItem.title = "Paused (idle)"
+                statusMenuItem.title = loc("Paused (idle)")
             case .user(let until):
                 if let until = until {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
-                    statusMenuItem.title = "Paused until \(formatter.string(from: until))"
+                    let format = loc("Paused until %@")
+                    statusMenuItem.title = String(format: format, formatter.string(from: until))
                 } else {
-                    statusMenuItem.title = "Paused"
+                    statusMenuItem.title = loc("Paused")
                 }
             case .system:
-                statusMenuItem.title = "Paused (system)"
+                statusMenuItem.title = loc("Paused (system)")
             }
+
         case .disabled:
-            statusMenuItem.title = "SafeEyes Disabled"
+            statusMenuItem.title = loc("SafeEyes Disabled")
         }
     }
 
     private func updatePauseResumeMenu() {
         switch timer.state {
         case .paused:
-            pauseResumeItem.title = "Resume"
+            pauseResumeItem.title = loc("Resume")
             pauseResumeItem.target = self
             pauseResumeItem.action = #selector(resumeClicked)
             pauseResumeItem.submenu = nil
         default:
-            pauseResumeItem.title = "Pause"
+            pauseResumeItem.title = loc("Pause")
             pauseResumeItem.target = nil
             pauseResumeItem.action = nil
 
             let pauseSubmenu = NSMenu()
 
-            let m30 = NSMenuItem(title: "30 Minutes", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m30 = NSMenuItem(title: loc("30 Minutes"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m30.tag = 30
             m30.target = self
             pauseSubmenu.addItem(m30)
 
-            let m60 = NSMenuItem(title: "1 Hour", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m60 = NSMenuItem(title: loc("1 Hour"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m60.tag = 60
             m60.target = self
             pauseSubmenu.addItem(m60)
 
-            let m120 = NSMenuItem(title: "2 Hours", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let m120 = NSMenuItem(title: loc("2 Hours"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             m120.tag = 120
             m120.target = self
             pauseSubmenu.addItem(m120)
 
-            let mForever = NSMenuItem(title: "Until I Resume", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            let mForever = NSMenuItem(title: loc("Until I Resume"), action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
             mForever.tag = 0
             mForever.target = self
             pauseSubmenu.addItem(mForever)
@@ -191,9 +228,17 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func formatTime(_ seconds: TimeInterval) -> String {
         let s = max(0, Int(seconds))
-        let minutes = s / 60
+        let hours = s / 3600
+        let minutes = (s % 3600) / 60
         let remainder = s % 60
-        return String(format: "%02d:%02d", minutes, remainder)
+
+        if hours > 0 {
+            return String(format: "%dh %dm %02ds", hours, minutes, remainder)
+        } else if minutes > 0 {
+            return String(format: "%dm %02ds", minutes, remainder)
+        } else {
+            return "\(remainder)s"
+        }
     }
 
     // MARK: - Actions

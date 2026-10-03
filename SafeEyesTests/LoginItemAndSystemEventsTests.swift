@@ -90,7 +90,7 @@ final class LoginItemAndSystemEventsTests: XCTestCase {
     }
 
     func testSystemEventObserverDispatchesSleepAndWake() {
-        _ = SystemEventObserver(timerManager: timerManager)
+        var observer: SystemEventObserver? = SystemEventObserver(timerManager: timerManager)
 
         // Initial state is working
         if case .working = timerManager.state {
@@ -99,18 +99,22 @@ final class LoginItemAndSystemEventsTests: XCTestCase {
             XCTFail("Expected working state")
         }
 
+        let sleepExpectation = expectation(description: "Pause on sleep")
+        let cancellable = timerManager.$state
+            .dropFirst()
+            .sink { state in
+                if case .paused(let reason, _) = state, reason == .system {
+                    sleepExpectation.fulfill()
+                }
+            }
+
         // Post will sleep
         NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
 
-        // Give the async Task a chance to run on main queue
-        let sleepExpectation = expectation(description: "Pause on sleep")
-        DispatchQueue.main.async {
-            if case .paused(let reason, _) = self.timerManager.state {
-                XCTAssertEqual(reason, .system)
-                sleepExpectation.fulfill()
-            }
-        }
-        waitForExpectations(timeout: 1.0)
+        waitForExpectations(timeout: 2.0)
+        cancellable.cancel()
+        _ = observer
+        observer = nil
     }
 
     func testScreenLockAndUnlockEvents() {

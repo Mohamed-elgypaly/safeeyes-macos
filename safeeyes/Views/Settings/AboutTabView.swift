@@ -36,7 +36,7 @@ struct AboutTabView: View {
             }
 
             Section {
-                Link(destination: URL(string: "https://github.com/slgobinern/SafeEyes")!) {
+                Link(destination: URL(string: "https://github.com/slgobinath/SafeEyes")!) {
                     HStack {
                         Image(systemName: "link")
                         Text("SafeEyes on GitHub")

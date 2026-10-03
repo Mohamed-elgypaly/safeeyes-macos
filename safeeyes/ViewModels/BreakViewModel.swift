@@ -44,10 +44,14 @@ public final class BreakViewModel: ObservableObject {
 
     public var formattedRemaining: String {
         let total = max(0, Int(remainingSeconds))
-        let minutes = total / 60
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
         let seconds = total % 60
-        if minutes > 0 {
-            return String(format: "%d:%02d", minutes, seconds)
+
+        if hours > 0 {
+            return String(format: "%dh %dm %02ds", hours, minutes, seconds)
+        } else if minutes > 0 {
+            return String(format: "%dm %02ds", minutes, seconds)
         } else {
             return "\(seconds)"
         }

@@ -30,6 +30,17 @@ struct GeneralTabView: View {
             }
 
             Section {
+                Picker("Language", selection: $viewModel.selectedLanguage) {
+                    Text("System Default").tag("system")
+                    Text("English").tag("en")
+                    Text("العربية").tag("ar")
+                }
+                .accessibilityLabel("Application language")
+            } header: {
+                Label("Language", systemImage: "globe")
+            }
+
+            Section {
                 Button(role: .destructive) {
                     showResetConfirmation = true
                 } label: {

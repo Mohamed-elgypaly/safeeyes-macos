@@ -22,7 +22,7 @@ public final class SettingsWindowController {
         let hostingController = NSHostingController(rootView: rootView)
 
         let newWindow = NSWindow(contentViewController: hostingController)
-        newWindow.title = "SafeEyes Settings"
+        newWindow.title = NSLocalizedString("SafeEyes Settings", comment: "")
         newWindow.styleMask = [.titled, .closable, .miniaturizable]
         newWindow.center()
         newWindow.setFrameAutosaveName("SafeEyesSettings")
