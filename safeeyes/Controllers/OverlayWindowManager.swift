@@ -66,7 +66,9 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
                     window.animator().alphaValue = 0.0
                 }
             }, completionHandler: { [weak self] in
-                self?.teardownWindows()
+                Task { @MainActor [weak self] in
+                    self?.teardownWindows()
+                }
             })
         } else {
             teardownWindows()
@@ -200,10 +202,12 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self, self.isBreakActive, self.isStrict else { return }
-            self.activateApp()
-            for window in self.windows {
-                window.orderFrontRegardless()
+            Task { @MainActor [weak self] in
+                guard let self = self, self.isBreakActive, self.isStrict else { return }
+                self.activateApp()
+                for window in self.windows {
+                    window.orderFrontRegardless()
+                }
             }
         }
     }
@@ -262,7 +266,9 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.rebuildWindowsForScreenChange()
+            Task { @MainActor [weak self] in
+                self?.rebuildWindowsForScreenChange()
+            }
         }
     }
 

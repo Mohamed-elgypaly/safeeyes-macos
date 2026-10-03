@@ -4,7 +4,8 @@ import SwiftUI
 
 @MainActor
 public final class SettingsViewModel: ObservableObject {
-    private let settingsManager: SettingsManager
+    private let settingsManager: SettingsStoring
+    private let loginItemService: LoginItemControlling
 
     // MARK: - Breaks Tab
     @Published public var shortBreakIntervalMinutes: Int {
@@ -45,8 +46,12 @@ public final class SettingsViewModel: ObservableObject {
 
     // MARK: - General Tab
     @Published public var launchAtLogin: Bool {
-        didSet { pushChange() }
+        didSet {
+            guard !isPulling else { return }
+            setLaunchAtLogin(launchAtLogin)
+        }
     }
+    @Published public private(set) var loginItemRequiresApproval: Bool = false
 
     /// Tracks whether postpone should be disabled in the UI (strict mode overrides it)
     public var isPostponeDisabled: Bool {
@@ -55,8 +60,12 @@ public final class SettingsViewModel: ObservableObject {
 
     private var isPulling = false
 
-    public init(settingsManager: SettingsManager) {
+    public init(
+        settingsManager: SettingsStoring,
+        loginItemService: LoginItemControlling = LoginItemService.shared
+    ) {
         self.settingsManager = settingsManager
+        self.loginItemService = loginItemService
         let s = settingsManager.settings
 
         // Initialize all published properties from current settings
@@ -72,6 +81,41 @@ public final class SettingsViewModel: ObservableObject {
         self.playSounds = s.playSounds
         self.showExercises = s.showExercises
         self.launchAtLogin = s.launchAtLogin
+
+        // Reconcile with system login item status on init
+        reconcileLoginItem()
+    }
+
+    // MARK: - Login Item Management
+
+    public func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try loginItemService.setEnabled(enabled)
+            isPulling = true
+            launchAtLogin = loginItemService.isEnabled
+            loginItemRequiresApproval = loginItemService.requiresApproval
+            settingsManager.update { $0.launchAtLogin = self.launchAtLogin }
+            isPulling = false
+        } catch {
+            Log.app.error("Failed to update login item: \(error.localizedDescription, privacy: .public)")
+            reconcileLoginItem()
+        }
+    }
+
+    public func openLoginItemsSettings() {
+        loginItemService.openLoginItemsSettings()
+    }
+
+    public func reconcileLoginItem() {
+        let systemEnabled = loginItemService.isEnabled
+        self.loginItemRequiresApproval = loginItemService.requiresApproval
+
+        if launchAtLogin != systemEnabled {
+            isPulling = true
+            launchAtLogin = systemEnabled
+            settingsManager.update { $0.launchAtLogin = systemEnabled }
+            isPulling = false
+        }
     }
 
     // MARK: - Push to SettingsManager
@@ -121,6 +165,7 @@ public final class SettingsViewModel: ObservableObject {
     public func resetToDefaults() {
         settingsManager.reset()
         pullFromSettings()
+        reconcileLoginItem()
     }
 
     /// Formatted display of long break duration in minutes

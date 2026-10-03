@@ -11,6 +11,7 @@ final class AppCoordinator {
     let notificationService: NotificationService
     let overlayWindowManager: OverlayWindowManager
     let timerManager: TimerManager
+    var systemEventObserver: SystemEventObserver?
     var menuBarController: MenuBarController?
     var settingsWindowController: SettingsWindowController?
 
@@ -38,6 +39,9 @@ final class AppCoordinator {
         // Configure timerManager on overlay window manager
         overlay.configure(timerManager: timerManager)
 
+        // Wire SystemEventObserver to TimerManager
+        self.systemEventObserver = SystemEventObserver(timerManager: timerManager)
+
         // Route notification banner actions to TimerManager
         notifications.onAction = { [weak self] event in
             self?.timerManager.send(event)
@@ -46,6 +50,12 @@ final class AppCoordinator {
 
     func start() {
         Log.app.info("SafeEyes AppCoordinator started")
+
+        // Reconcile launch-at-login system status with stored settings
+        let loginService = LoginItemService.shared
+        if settingsManager.settings.launchAtLogin != loginService.isEnabled {
+            settingsManager.update { $0.launchAtLogin = loginService.isEnabled }
+        }
 
         // Request notification authorization asynchronously
         Task {

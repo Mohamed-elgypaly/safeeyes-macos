@@ -8,8 +8,7 @@ public final class BreakWindow: NSWindow {
             contentRect: screen.frame,
             styleMask: [.borderless],
             backing: .buffered,
-            defer: false,
-            screen: screen
+            defer: false
         )
 
         self.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
