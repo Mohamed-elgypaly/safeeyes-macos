@@ -39,6 +39,15 @@ final class AppCoordinator {
         // Configure timerManager on overlay window manager
         overlay.configure(timerManager: timerManager)
 
+        // Play chime sound when break completes if sounds are enabled
+        timerManager.onPlaySound = {
+            if let sound = NSSound(named: "Glass") {
+                sound.play()
+            } else {
+                NSSound.beep()
+            }
+        }
+
         // Wire SystemEventObserver to TimerManager
         self.systemEventObserver = SystemEventObserver(timerManager: timerManager)
 

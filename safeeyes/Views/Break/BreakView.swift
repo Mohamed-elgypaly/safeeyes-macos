@@ -21,7 +21,7 @@ public struct BreakView: View {
                 HStack(spacing: 8) {
                     Image(systemName: viewModel.breakKind == .short ? "eye" : "figure.walk")
                         .font(.system(size: 15, weight: .semibold))
-                    Text(viewModel.breakKind == .short ? "SHORT BREAK" : "LONG BREAK")
+                    Text(LocalizedStringKey(viewModel.breakKind == .short ? "SHORT BREAK" : "LONG BREAK"))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .tracking(1.5)
                 }
@@ -29,6 +29,8 @@ public struct BreakView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(Capsule().fill(Color.white.opacity(0.1)))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(viewModel.breakKind == .short ? "Short break active" : "Long break active")
 
                 // Centerpiece: Countdown ring
                 CountdownRing(
@@ -58,6 +60,8 @@ public struct BreakView: View {
                             .frame(maxWidth: 480)
                     }
                     .padding(.horizontal, 24)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Exercise: \(exercise.title). \(exercise.instruction)")
                 }
 
                 Spacer().frame(height: 16)
@@ -74,6 +78,7 @@ public struct BreakView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                    .accessibilityLabel("Strict mode is active. Skipping and postponing are disabled.")
                 } else {
                     HStack(spacing: 20) {
                         if viewModel.allowPostpone {
@@ -82,6 +87,7 @@ public struct BreakView: View {
                             }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "clock.arrow.circlepath")
+                                        .flipsForRightToLeftLayoutDirection(true)
                                     Text("Postpone")
                                 }
                                 .font(.system(size: 14, weight: .medium))
@@ -91,6 +97,8 @@ public struct BreakView: View {
                                 .background(Capsule().fill(Color.white.opacity(0.15)))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Postpone break")
+                            .accessibilityHint("Postpones the break for the configured duration")
                         }
 
                         Button(action: {
@@ -98,6 +106,7 @@ public struct BreakView: View {
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "forward.end.fill")
+                                    .flipsForRightToLeftLayoutDirection(true)
                                 Text("Skip (Esc)")
                             }
                             .font(.system(size: 14, weight: .medium))
@@ -108,6 +117,8 @@ public struct BreakView: View {
                         }
                         .buttonStyle(.plain)
                         .keyboardShortcut(.cancelAction) // Esc shortcut
+                        .accessibilityLabel("Skip break")
+                        .accessibilityHint("Skips the current break. Can also press Escape.")
                     }
                 }
             }

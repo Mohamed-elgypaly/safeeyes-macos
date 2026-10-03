@@ -21,6 +21,8 @@ public struct SecondaryScreenView: View {
                     .font(.system(size: 18, weight: .light, design: .rounded))
                     .foregroundColor(.white.opacity(0.4))
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Break in progress: \(viewModel.formattedRemaining) remaining. Rest your eyes.")
         }
     }
 }

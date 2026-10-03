@@ -1,6 +1,8 @@
 import SwiftUI
 
 public struct CountdownRing: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public let progress: Double
     public let displayText: String
     public let unitText: String
@@ -42,7 +44,7 @@ public struct CountdownRing: View {
                 )
                 .rotationEffect(.degrees(-90))
                 .frame(width: diameter, height: diameter)
-                .animation(.linear(duration: 0.5), value: progress)
+                .animation(reduceMotion ? nil : .linear(duration: 0.5), value: progress)
 
             // Central countdown readout
             VStack(spacing: 2) {
@@ -52,12 +54,15 @@ public struct CountdownRing: View {
                     .contentTransition(.numericText())
 
                 if !unitText.isEmpty {
-                    Text(unitText)
+                    Text(LocalizedStringKey(unitText))
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.6))
                         .textCase(.uppercase)
                 }
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Break countdown timer")
+        .accessibilityValue("\(displayText) \(unitText) remaining")
     }
 }
