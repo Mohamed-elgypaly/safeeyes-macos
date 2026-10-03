@@ -12,6 +12,7 @@ final class AppCoordinator {
     let overlayWindowManager: OverlayWindowManager
     let timerManager: TimerManager
     var menuBarController: MenuBarController?
+    var settingsWindowController: SettingsWindowController?
 
     init() {
         let settings = SettingsManager()
@@ -51,6 +52,10 @@ final class AppCoordinator {
             _ = await notificationService.requestAuthorization()
         }
 
+        // Create settings window controller
+        let settingsWC = SettingsWindowController(settingsManager: settingsManager)
+        self.settingsWindowController = settingsWC
+
         // Install menu bar controller
         let menuBar = MenuBarController(timer: timerManager) { [weak self] in
             self?.openSettings()
@@ -63,6 +68,7 @@ final class AppCoordinator {
     }
 
     func openSettings() {
-        Log.app.info("Open settings requested")
+        Log.app.info("Opening settings window")
+        settingsWindowController?.showWindow()
     }
 }
