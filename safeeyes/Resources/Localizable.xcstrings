@@ -1249,6 +1249,22 @@
         }
       }
     },
+    "Restart the app to apply language changes to the Menu Bar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart the app to apply language changes to the Menu Bar."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعد تشغيل التطبيق لتطبيق تغييرات اللغة على شريط القوائم بالكامل."
+          }
+        }
+      }
+    },
     "Reset": {
       "localizations": {
         "en": {

@@ -19,7 +19,7 @@ struct AboutTabView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("SafeEyes")
                             .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        Text("Version \(appVersion) (\(buildNumber))")
+                        Text(LocalizedStringKey("Version \(appVersion) (\(buildNumber))"))
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
                     }
@@ -28,40 +28,40 @@ struct AboutTabView: View {
             }
 
             Section {
-                Text("Protect your eyes from eye strain with regular break reminders.")
+                Text(LocalizedStringKey("Protect your eyes from eye strain with regular break reminders."))
                     .font(.body)
                     .foregroundColor(.secondary)
             } header: {
-                Label("About", systemImage: "info.circle")
+                Label(LocalizedStringKey("About"), systemImage: "info.circle")
             }
 
             Section {
                 Link(destination: URL(string: "https://github.com/slgobinath/SafeEyes")!) {
                     HStack {
                         Image(systemName: "link")
-                        Text("SafeEyes on GitHub")
+                        Text(LocalizedStringKey("SafeEyes on GitHub"))
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
                             .foregroundColor(.secondary)
                     }
                 }
-                .accessibilityLabel("Open SafeEyes GitHub page")
+                .accessibilityLabel(LocalizedStringKey("Open SafeEyes GitHub page"))
             } header: {
-                Label("Links", systemImage: "globe")
+                Label(LocalizedStringKey("Links"), systemImage: "globe")
             }
 
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("GNU General Public License v3.0")
+                    Text(LocalizedStringKey("GNU General Public License v3.0"))
                         .font(.system(size: 13, weight: .medium))
-                    Text("SafeEyes is free software. You can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation.")
+                    Text(LocalizedStringKey("SafeEyes is free software. You can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation."))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .lineSpacing(3)
                 }
                 .padding(.vertical, 2)
             } header: {
-                Label("License", systemImage: "doc.text")
+                Label(LocalizedStringKey("License"), systemImage: "doc.text")
             }
         }
         .formStyle(.grouped)

@@ -6,53 +6,53 @@ struct BehaviorTabView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Strict Mode", isOn: $viewModel.strictMode)
-                    .accessibilityLabel("Strict mode")
-                    .accessibilityHint("When enabled, breaks cannot be skipped or postponed")
+                Toggle(LocalizedStringKey("Strict Mode"), isOn: $viewModel.strictMode)
+                    .accessibilityLabel(LocalizedStringKey("Strict mode"))
+                    .accessibilityHint(LocalizedStringKey("When enabled, breaks cannot be skipped or postponed"))
 
-                Toggle("Allow Postpone", isOn: $viewModel.allowPostpone)
+                Toggle(LocalizedStringKey("Allow Postpone"), isOn: $viewModel.allowPostpone)
                     .disabled(viewModel.isPostponeDisabled)
-                    .accessibilityLabel("Allow postponing breaks")
+                    .accessibilityLabel(LocalizedStringKey("Allow postponing breaks"))
 
                 if viewModel.isPostponeDisabled {
-                    Text("Postpone is disabled in Strict Mode")
+                    Text(LocalizedStringKey("Postpone is disabled in Strict Mode"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
                 if viewModel.allowPostpone && !viewModel.strictMode {
                     Stepper(
-                        "Postpone duration: \(viewModel.postponeMinutes) min",
+                        LocalizedStringKey("Postpone duration: \(viewModel.postponeMinutes) min"),
                         value: $viewModel.postponeMinutes,
                         in: 1...30,
                         step: 1
                     )
-                    .accessibilityLabel("Postpone duration in minutes")
+                    .accessibilityLabel(LocalizedStringKey("Postpone duration in minutes"))
                 }
             } header: {
-                Label("Break Enforcement", systemImage: "lock.shield")
+                Label(LocalizedStringKey("Break Enforcement"), systemImage: "lock.shield")
             }
 
             Section {
                 Stepper(
-                    "Idle pause after \(viewModel.idlePauseThresholdSeconds) sec",
+                    LocalizedStringKey("Idle pause after \(viewModel.idlePauseThresholdSeconds) sec"),
                     value: $viewModel.idlePauseThresholdSeconds,
                     in: 5...600,
                     step: 5
                 )
-                .accessibilityLabel("Idle pause threshold in seconds")
+                .accessibilityLabel(LocalizedStringKey("Idle pause threshold in seconds"))
             } header: {
-                Label("Idle Detection", systemImage: "moon.zzz")
+                Label(LocalizedStringKey("Idle Detection"), systemImage: "moon.zzz")
             }
 
             Section {
-                Toggle("Play Sounds", isOn: $viewModel.playSounds)
-                    .accessibilityLabel("Play end-of-break chime")
+                Toggle(LocalizedStringKey("Play Sounds"), isOn: $viewModel.playSounds)
+                    .accessibilityLabel(LocalizedStringKey("Play end-of-break chime"))
 
-                Toggle("Show Exercises", isOn: $viewModel.showExercises)
-                    .accessibilityLabel("Show exercise suggestions during breaks")
+                Toggle(LocalizedStringKey("Show Exercises"), isOn: $viewModel.showExercises)
+                    .accessibilityLabel(LocalizedStringKey("Show exercise suggestions during breaks"))
             } header: {
-                Label("Extras", systemImage: "sparkles")
+                Label(LocalizedStringKey("Extras"), systemImage: "sparkles")
             }
         }
         .formStyle(.grouped)

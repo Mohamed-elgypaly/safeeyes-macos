@@ -49,7 +49,7 @@ public struct CountdownRing: View {
             // Central countdown readout
             VStack(spacing: 2) {
                 Text(displayText)
-                    .font(.system(size: diameter * 0.28, weight: .light, design: .rounded))
+                    .font(.system(size: fontSize, weight: .light, design: .rounded))
                     .foregroundColor(.white)
                     .contentTransition(.numericText())
 
@@ -63,6 +63,16 @@ public struct CountdownRing: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Break countdown timer")
-        .accessibilityValue("\(displayText) \(unitText) remaining")
+        .accessibilityValue(unitText.isEmpty ? "\(displayText) remaining" : "\(displayText) \(unitText) remaining")
+    }
+
+    private var fontSize: CGFloat {
+        if displayText.count > 6 {
+            return diameter * 0.18
+        } else if displayText.count > 4 {
+            return diameter * 0.22
+        } else {
+            return diameter * 0.28
+        }
     }
 }

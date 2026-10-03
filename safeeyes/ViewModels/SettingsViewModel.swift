@@ -5,6 +5,7 @@ import AppKit
 
 @MainActor
 public final class SettingsViewModel: ObservableObject {
+    public static let appLanguageKey = "appLanguage"
     public static let appleLanguagesKey = "AppleLanguages"
 
     private let settingsManager: SettingsStoring
@@ -57,11 +58,17 @@ public final class SettingsViewModel: ObservableObject {
     @Published public private(set) var loginItemRequiresApproval: Bool = false
 
     // MARK: - Language Tab / Picker
-    @Published public var selectedLanguage: String {
+    @Published public var appLanguage: String {
         didSet {
             guard !isPulling else { return }
-            handleLanguageSelection(selectedLanguage)
+            handleLanguageSelection(appLanguage)
         }
+    }
+
+    /// Alias for backwards compatibility
+    public var selectedLanguage: String {
+        get { appLanguage }
+        set { appLanguage = newValue }
     }
 
     /// Tracks whether postpone should be disabled in the UI (strict mode overrides it)
@@ -92,7 +99,7 @@ public final class SettingsViewModel: ObservableObject {
         self.playSounds = s.playSounds
         self.showExercises = s.showExercises
         self.launchAtLogin = s.launchAtLogin
-        self.selectedLanguage = Self.detectInitialLanguage()
+        self.appLanguage = Self.detectInitialLanguage()
 
         // Reconcile with system login item status on init
         reconcileLoginItem()
@@ -101,33 +108,28 @@ public final class SettingsViewModel: ObservableObject {
     // MARK: - Language Management
 
     private static func detectInitialLanguage() -> String {
-        guard let languages = UserDefaults.standard.array(forKey: appleLanguagesKey) as? [String],
-              let first = languages.first else {
-            return "system"
+        if let saved = UserDefaults.standard.string(forKey: appLanguageKey), !saved.isEmpty {
+            return saved == "ar" ? "ar" : "en"
         }
-        if first.hasPrefix("ar") {
+        if let languages = UserDefaults.standard.array(forKey: appleLanguagesKey) as? [String],
+           let first = languages.first {
+            return first.hasPrefix("ar") ? "ar" : "en"
+        }
+        if Locale.preferredLanguages.first?.hasPrefix("ar") == true {
             return "ar"
-        } else if first.hasPrefix("en") {
-            return "en"
-        } else {
-            return "system"
         }
+        return "en"
     }
 
     private func handleLanguageSelection(_ lang: String) {
-        if lang == "system" {
-            UserDefaults.standard.removeObject(forKey: Self.appleLanguagesKey)
-        } else {
-            UserDefaults.standard.set([lang], forKey: Self.appleLanguagesKey)
-        }
+        UserDefaults.standard.set(lang, forKey: Self.appLanguageKey)
+        UserDefaults.standard.set([lang], forKey: Self.appleLanguagesKey)
         UserDefaults.standard.synchronize()
-
-        promptRestart()
     }
 
     private func loc(_ key: String) -> String {
-        let lang = selectedLanguage
-        if lang == "ar" || (lang == "system" && Locale.preferredLanguages.first?.hasPrefix("ar") == true) {
+        let lang = appLanguage
+        if lang == "ar" {
             if let path = Bundle.main.path(forResource: "ar", ofType: "lproj"),
                let bundle = Bundle(path: path) {
                 return bundle.localizedString(forKey: key, value: key, table: nil)

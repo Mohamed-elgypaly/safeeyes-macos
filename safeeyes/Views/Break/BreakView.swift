@@ -2,6 +2,10 @@ import SwiftUI
 
 public struct BreakView: View {
     @ObservedObject public var viewModel: BreakViewModel
+    @AppStorage("appLanguage") private var appLanguage: String = {
+        UserDefaults.standard.string(forKey: "appLanguage") ??
+        (Locale.preferredLanguages.first?.hasPrefix("ar") == true ? "ar" : "en")
+    }()
 
     public init(viewModel: BreakViewModel) {
         self.viewModel = viewModel
@@ -30,13 +34,13 @@ public struct BreakView: View {
                 .padding(.vertical, 8)
                 .background(Capsule().fill(Color.white.opacity(0.1)))
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(viewModel.breakKind == .short ? "Short break active" : "Long break active")
+                .accessibilityLabel(LocalizedStringKey(viewModel.breakKind == .short ? "Short break active" : "Long break active"))
 
                 // Centerpiece: Countdown ring
                 CountdownRing(
                     progress: viewModel.progress,
                     displayText: viewModel.formattedRemaining,
-                    unitText: viewModel.remainingSeconds > 60 ? "" : "seconds",
+                    unitText: "",
                     diameter: 220
                 )
 
@@ -71,14 +75,14 @@ public struct BreakView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 14))
-                        Text("Strict Mode Active")
+                        Text(LocalizedStringKey("Strict Mode Active"))
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                     }
                     .foregroundColor(.white.opacity(0.5))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                    .accessibilityLabel("Strict mode is active. Skipping and postponing are disabled.")
+                    .accessibilityLabel(LocalizedStringKey("Strict mode is active. Skipping and postponing are disabled."))
                 } else {
                     HStack(spacing: 20) {
                         if viewModel.allowPostpone {
@@ -88,7 +92,7 @@ public struct BreakView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "clock.arrow.circlepath")
                                         .flipsForRightToLeftLayoutDirection(true)
-                                    Text("Postpone")
+                                    Text(LocalizedStringKey("Postpone"))
                                 }
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white.opacity(0.9))
@@ -97,8 +101,8 @@ public struct BreakView: View {
                                 .background(Capsule().fill(Color.white.opacity(0.15)))
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Postpone break")
-                            .accessibilityHint("Postpones the break for the configured duration")
+                            .accessibilityLabel(LocalizedStringKey("Postpone break"))
+                            .accessibilityHint(LocalizedStringKey("Postpones the break for the configured duration"))
                         }
 
                         Button(action: {
@@ -107,7 +111,7 @@ public struct BreakView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "forward.end.fill")
                                     .flipsForRightToLeftLayoutDirection(true)
-                                Text("Skip (Esc)")
+                                Text(LocalizedStringKey("Skip (Esc)"))
                             }
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
@@ -117,12 +121,14 @@ public struct BreakView: View {
                         }
                         .buttonStyle(.plain)
                         .keyboardShortcut(.cancelAction) // Esc shortcut
-                        .accessibilityLabel("Skip break")
-                        .accessibilityHint("Skips the current break. Can also press Escape.")
+                        .accessibilityLabel(LocalizedStringKey("Skip break"))
+                        .accessibilityHint(LocalizedStringKey("Skips the current break. Can also press Escape."))
                     }
                 }
             }
             .padding(40)
         }
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .environment(\.layoutDirection, appLanguage == "ar" ? .rightToLeft : .leftToRight)
     }
 }

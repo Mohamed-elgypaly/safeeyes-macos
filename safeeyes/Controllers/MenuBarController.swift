@@ -93,13 +93,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     // MARK: - Localization Helper
 
     private func loc(_ key: String) -> String {
-        if let langs = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
-           let first = langs.first {
-            if first.hasPrefix("ar"),
+        let chosenLang: String? = UserDefaults.standard.string(forKey: "appLanguage") ?? {
+            guard let langs = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+                  let first = langs.first else { return nil }
+            return first
+        }()
+
+        if let lang = chosenLang {
+            if lang.hasPrefix("ar"),
                let path = Bundle.main.path(forResource: "ar", ofType: "lproj"),
                let bundle = Bundle(path: path) {
                 return bundle.localizedString(forKey: key, value: key, table: nil)
-            } else if first.hasPrefix("en"),
+            } else if lang.hasPrefix("en"),
                       let path = Bundle.main.path(forResource: "en", ofType: "lproj"),
                       let bundle = Bundle(path: path) {
                 return bundle.localizedString(forKey: key, value: key, table: nil)

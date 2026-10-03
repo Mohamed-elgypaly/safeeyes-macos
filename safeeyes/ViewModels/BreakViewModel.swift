@@ -53,7 +53,7 @@ public final class BreakViewModel: ObservableObject {
         } else if minutes > 0 {
             return String(format: "%dm %02ds", minutes, seconds)
         } else {
-            return "\(seconds)"
+            return "\(seconds)s"
         }
     }
 
