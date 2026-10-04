@@ -25,6 +25,8 @@ targets:
       - path: SafeEyes/Support
     info:
       path: SafeEyes/Support/Info.plist
+      properties:
+        LSUIElement: true   # Hide from Dock and Cmd+Tab (pure menu-bar agent)
     entitlements:
       path: SafeEyes/Support/SafeEyes.entitlements
     settings:
