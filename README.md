@@ -99,3 +99,10 @@ The original cross-platform Python implementation has been preserved in [README_
 ## License
 
 SafeEyes is open-source software licensed under the [GNU General Public License v3.0](LICENSE).
+
+---
+
+## Acknowledgments / Credits
+
+This project's architecture and initial foundation are heavily inspired by and built upon the original [SafeEyes](https://github.com/slgobinath/safeeyes) project. Special thanks to the original developers and contributors for their great foundational work.
+

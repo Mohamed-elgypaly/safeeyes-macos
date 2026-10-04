@@ -1,3 +1,6 @@
+// Copyright (c) slgobinath (Original Architecture)
+// Copyright (c) 2026 Mohamed Elgebaly (macOS Native Port)
+
 import AppKit
 import SwiftUI
 import os
