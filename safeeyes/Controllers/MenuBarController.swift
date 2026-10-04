@@ -10,6 +10,19 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     // Retained menu item references for dynamic updates
     private let statusMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    /// Custom text-field view assigned to statusMenuItem.view so that
+    /// it remains live-updatable even while NSEventTrackingRunLoopMode
+    /// is active (i.e. while the menu is pulled down).
+    private let countdownTextField: NSTextField = {
+        let tf = NSTextField()
+        tf.drawsBackground = false
+        tf.isBordered = false
+        tf.isEditable = false
+        tf.isSelectable = false
+        tf.font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        tf.textColor = NSColor.secondaryLabelColor
+        return tf
+    }()
     private let takeBreakItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let shortBreakItem = NSMenuItem(title: "", action: #selector(takeShortBreak), keyEquivalent: "")
     private let longBreakItem = NSMenuItem(title: "", action: #selector(takeLongBreak), keyEquivalent: "")
@@ -54,8 +67,30 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        // Status Line
+        // Status Line – use a custom NSTextField so the countdown ticks
+        // live while the menu is open (NSEventTrackingRunLoopMode exemption).
+        // IMPORTANT: NSMenuItem.view must have an explicit frame; a zero-frame
+        // view is invisible. We use frame-based layout (no Auto Layout on the
+        // container itself) so AppKit can measure it before the menu is shown.
         statusMenuItem.isEnabled = false
+
+        let containerWidth: CGFloat = 240
+        let containerHeight: CGFloat = 26
+        let hPad: CGFloat = 14
+        let vPad: CGFloat = 4
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: containerWidth, height: containerHeight))
+        // The text field fills the container minus padding; autoresizes with the container.
+        countdownTextField.translatesAutoresizingMaskIntoConstraints = true
+        countdownTextField.frame = NSRect(
+            x: hPad,
+            y: vPad,
+            width: containerWidth - hPad * 2,
+            height: containerHeight - vPad * 2
+        )
+        countdownTextField.autoresizingMask = [.width, .height]
+        container.addSubview(countdownTextField)
+        statusMenuItem.view = container
         menu.addItem(statusMenuItem)
 
         // Take a Break Now Submenu
@@ -86,10 +121,9 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     public func refresh() {
         updateIcon()
         updateStaticMenuTitles()
-        updateStatusText()
+        updateCountdownTextField()
         updatePauseResumeMenu()
         updateSkipAndQuitItems()
-        statusItem?.menu?.update()
     }
 
     // MARK: - NSMenuDelegate
@@ -185,45 +219,74 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         setItemTitle(quitItem, title: loc("Quit SafeEyes"))
     }
 
-    private func updateStatusText() {
-        let statusFont = NSFont.systemFont(ofSize: 14, weight: .medium)
+    // MARK: - Live Countdown TextField
+
+    private func isArabic() -> Bool {
+        if let saved = UserDefaults.standard.string(forKey: "appLanguage") {
+            return saved == "ar"
+        }
+        if let langs = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+           let first = langs.first {
+            return first.hasPrefix("ar")
+        }
+        return Locale.preferredLanguages.first?.hasPrefix("ar") == true
+    }
+
+    private func updateCountdownTextField() {
+        let arabic = isArabic()
+        countdownTextField.alignment = arabic ? .right : .left
+
+        let text: String
         switch timer.state {
         case .working(let remaining, _):
             let format = loc("Next break in %@")
-            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
+            text = String(format: format, formatTime(remaining))
 
         case .preBreak(let kind, let remaining, _):
             let format = (kind == .short)
                 ? loc("Short break in %@")
                 : loc("Long break in %@")
-            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
+            text = String(format: format, formatTime(remaining))
 
         case .onBreak(let kind, let remaining, _, _):
             let format = (kind == .short)
                 ? loc("On a short break (%@)")
                 : loc("On a long break (%@)")
-            setItemTitle(statusMenuItem, title: String(format: format, formatTime(remaining)), font: statusFont, isSecondary: true)
+            text = String(format: format, formatTime(remaining))
 
         case .paused(let reason, _):
             switch reason {
             case .idle:
-                setItemTitle(statusMenuItem, title: loc("Paused (idle)"), font: statusFont, isSecondary: true)
+                text = loc("Paused (idle)")
             case .user(let until):
                 if let until = until {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
                     let format = loc("Paused until %@")
-                    setItemTitle(statusMenuItem, title: String(format: format, formatter.string(from: until)), font: statusFont, isSecondary: true)
+                    text = String(format: format, formatter.string(from: until))
                 } else {
-                    setItemTitle(statusMenuItem, title: loc("Paused"), font: statusFont, isSecondary: true)
+                    text = loc("Paused")
                 }
             case .system:
-                setItemTitle(statusMenuItem, title: loc("Paused (system)"), font: statusFont, isSecondary: true)
+                text = loc("Paused (system)")
             }
 
         case .disabled:
-            setItemTitle(statusMenuItem, title: loc("SafeEyes Disabled"), font: statusFont, isSecondary: true)
+            text = loc("SafeEyes Disabled")
         }
+
+        // Build an attributed string so we can enforce font + writing direction
+        // without touching NSMenuItem.attributedTitle (which is suppressed during tracking).
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.baseWritingDirection = arabic ? .rightToLeft : .leftToRight
+        paragraphStyle.alignment = arabic ? .right : .left
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraphStyle
+        ]
+        countdownTextField.attributedStringValue = NSAttributedString(string: text, attributes: attrs)
     }
 
     private func updatePauseResumeMenu() {
