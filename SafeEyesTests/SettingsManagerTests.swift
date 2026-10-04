@@ -46,7 +46,7 @@ final class SettingsManagerTests: XCTestCase {
     }
 
     func testClampingOfOutOfRangeValues() {
-        var settings = AppSettings(
+        let settings = AppSettings(
             shortBreakIntervalMinutes: 999, // max 120
             shortBreakDurationSeconds: 2,   // min 5
             longBreakEveryNShortBreaks: 0,   // min 1

@@ -23,7 +23,7 @@ final class BreakSchedulerTests: XCTestCase {
 
     func testFullShortBreakCycle() {
         // Start working: 900s remaining, 0 short breaks
-        var state = TimerState.working(remaining: 900, shortBreaksSinceLong: 0)
+        let state = TimerState.working(remaining: 900, shortBreaksSinceLong: 0)
 
         // 1. Tick down to 10 seconds -> triggers preBreak
         let (preState, preEffects) = BreakScheduler.reduce(
@@ -63,7 +63,7 @@ final class BreakSchedulerTests: XCTestCase {
 
     func testEveryFourthBreakIsLong() {
         // Start with 3 short breaks already taken
-        var state = TimerState.working(remaining: 15, shortBreaksSinceLong: 3)
+        let state = TimerState.working(remaining: 15, shortBreaksSinceLong: 3)
 
         // Tick into preBreak -> next kind should be .long
         let (preState, _) = BreakScheduler.reduce(
