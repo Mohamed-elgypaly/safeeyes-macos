@@ -7,7 +7,10 @@ import Combine
 @MainActor
 public final class MenuBarController: NSObject, NSMenuDelegate {
     private let timer: TimerManager
+    private let settings: SettingsStoring?
     private let onOpenSettings: () -> Void
+    /// Latest state delivered by `$state`. @Published emits in willSet, so `timer.state` is still the OLD value inside the sink.
+    private var currentState: TimerState
     private var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
 
@@ -35,8 +38,10 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     private let aboutItem = NSMenuItem(title: "", action: #selector(aboutClicked), keyEquivalent: "")
     private let quitItem = NSMenuItem(title: "", action: #selector(quitClicked), keyEquivalent: "q")
 
-    public init(timer: TimerManager, onOpenSettings: @escaping () -> Void) {
+    public init(timer: TimerManager, settings: SettingsStoring? = nil, onOpenSettings: @escaping () -> Void) {
         self.timer = timer
+        self.settings = settings
+        self.currentState = timer.state
         self.onOpenSettings = onOpenSettings
         super.init()
 
@@ -47,18 +52,12 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         aboutItem.target = self
         quitItem.target = self
 
-        // Observe timer state changes to refresh menu bar icon and text
+        // $state emits on every tick (including while the menu is tracked, since the timer runs in
+        // .common mode), so no separate 1 Hz timer is needed.
         timer.$state
-            .sink { [weak self] _ in
-                self?.refresh()
-            }
-            .store(in: &cancellables)
-
-        // Ensure 1 Hz live countdown updates on RunLoop.main in .common mode while the menu is tracked/open
-        Timer.publish(every: 1.0, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.refresh()
+            .sink { [weak self] newState in
+                self?.currentState = newState
+                self?.render()
             }
             .store(in: &cancellables)
     }
@@ -122,8 +121,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     public func refresh() {
-        updateIcon()
+        currentState = timer.state
         updateStaticMenuTitles()
+        render()
+    }
+
+    private func render() {
+        updateIcon()
         updateCountdownTextField()
         updatePauseResumeMenu()
         updateSkipAndQuitItems()
@@ -166,6 +170,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         font: NSFont = NSFont.menuBarFont(ofSize: 0),
         isSecondary: Bool = false
     ) {
+        if item.title == title, item.attributedTitle != nil { return }
         item.title = title
 
         let isArabic: Bool = {
@@ -199,7 +204,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         guard let button = statusItem?.button else { return }
 
         let isPausedOrDisabled: Bool
-        switch timer.state {
+        switch currentState {
         case .paused, .disabled:
             isPausedOrDisabled = true
         default:
@@ -240,7 +245,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         countdownTextField.alignment = arabic ? .right : .left
 
         let text: String
-        switch timer.state {
+        switch currentState {
         case .working(let remaining, _):
             let format = loc("Next break in %@")
             text = String(format: format, formatTime(remaining))
@@ -292,54 +297,46 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         countdownTextField.attributedStringValue = NSAttributedString(string: text, attributes: attrs)
     }
 
+    private lazy var pauseSubmenu: NSMenu = self.buildPauseSubmenu()
+
+    private func buildPauseSubmenu() -> NSMenu {
+        let submenu = NSMenu()
+        let entries: [(Int, String)] = [
+            (30, "30 Minutes"), (60, "1 Hour"), (120, "2 Hours"), (0, "Until I Resume")
+        ]
+        for (tag, key) in entries {
+            let item = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
+            item.tag = tag
+            item.target = self
+            setItemTitle(item, title: loc(key))
+            submenu.addItem(item)
+        }
+        return submenu
+    }
+
     private func updatePauseResumeMenu() {
-        switch timer.state {
+        switch currentState {
         case .paused:
             setItemTitle(pauseResumeItem, title: loc("Resume"))
             pauseResumeItem.target = self
             pauseResumeItem.action = #selector(resumeClicked)
-            pauseResumeItem.submenu = nil
+            if pauseResumeItem.submenu != nil { pauseResumeItem.submenu = nil }
         default:
             setItemTitle(pauseResumeItem, title: loc("Pause"))
             pauseResumeItem.target = nil
             pauseResumeItem.action = nil
-
-            let pauseSubmenu = NSMenu()
-
-            let m30 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
-            m30.tag = 30
-            m30.target = self
-            setItemTitle(m30, title: loc("30 Minutes"))
-            pauseSubmenu.addItem(m30)
-
-            let m60 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
-            m60.tag = 60
-            m60.target = self
-            setItemTitle(m60, title: loc("1 Hour"))
-            pauseSubmenu.addItem(m60)
-
-            let m120 = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
-            m120.tag = 120
-            m120.target = self
-            setItemTitle(m120, title: loc("2 Hours"))
-            pauseSubmenu.addItem(m120)
-
-            let mForever = NSMenuItem(title: "", action: #selector(pauseDurationClicked(_:)), keyEquivalent: "")
-            mForever.tag = 0
-            mForever.target = self
-            setItemTitle(mForever, title: loc("Until I Resume"))
-            pauseSubmenu.addItem(mForever)
-
-            pauseResumeItem.submenu = pauseSubmenu
+            // Built once: replacing the submenu every second dismisses it while the user hovers
+            if pauseResumeItem.submenu !== pauseSubmenu { pauseResumeItem.submenu = pauseSubmenu }
         }
     }
 
     private func updateSkipAndQuitItems() {
-        let isStrict = false
-        let isStrictOnBreak = false
+        let isStrict = settings?.settings.strictMode ?? false
+        var isOnBreak = false
+        if case .onBreak = currentState { isOnBreak = true }
 
-        // In strict mode while onBreak, quit is disabled
-        quitItem.isEnabled = !isStrictOnBreak
+        // In strict mode while on a break, quit is disabled
+        quitItem.isEnabled = !(isStrict && isOnBreak)
 
         // Skip next break is hidden in strict mode
         skipBreakItem.isHidden = isStrict
@@ -392,13 +389,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func aboutClicked() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
         NSApp.orderFrontStandardAboutPanel(
             options: [
                 NSApplication.AboutPanelOptionKey.applicationName: "SafeEyes",
-                NSApplication.AboutPanelOptionKey.version: "1.0.0"
+                NSApplication.AboutPanelOptionKey.version: version
             ]
         )
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     @objc private func quitClicked() {

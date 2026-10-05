@@ -15,7 +15,14 @@ public enum BreakScheduler {
             return handleTick(state: state, elapsed: elapsed, idleSeconds: idleSeconds, settings: settings, now: now)
 
         case .idleCredit(let credit):
-            return handleIdleCredit(state: state, credit: credit, settings: settings)
+            // Sleep/lock/user pauses own their own resume path; a tick-gap credit must not end them
+            // (otherwise the later wake/unlock event would credit the same time twice).
+            switch state {
+            case .disabled, .paused(.system, _), .paused(.user(_), _):
+                return (state, [])
+            default:
+                return handleIdleCredit(state: state, credit: credit, settings: settings)
+            }
 
         case .userPause(let duration):
             let until = duration.map { now.addingTimeInterval($0) }
@@ -44,11 +51,22 @@ public enum BreakScheduler {
             return handleSettingsChanged(state: state, settings: settings)
 
         case .systemWillSleep, .screenLocked:
+            // An explicit user pause (or the disabled state) must survive sleep/lock,
+            // otherwise the wake/unlock handler would silently cancel it.
+            switch state {
+            case .disabled, .paused(.user(_), _):
+                return (state, [])
+            default:
+                break
+            }
             let snapshot = makeSnapshot(from: state, settings: settings, pausedAt: now)
             return (.paused(reason: .system, frozen: snapshot), [.hideOverlay, .cancelNotification, .stateChanged])
 
         case .systemDidWake(let sleptFor):
-            return handleIdleCredit(state: state, credit: sleptFor, settings: settings)
+            // Only a system pause is ended by wake; anything else was already handled
+            guard case .paused(.system, let snapshot) = state else { return (state, []) }
+            let away = max(sleptFor, snapshot.pausedAt.map { now.timeIntervalSince($0) } ?? 0)
+            return applyIdleCredit(credit: away, snapshot: snapshot, settings: settings)
 
         case .screenUnlocked:
             if case .paused(let reason, let snapshot) = state, reason == .system {
@@ -147,7 +165,8 @@ public enum BreakScheduler {
             switch reason {
             case .idle:
                 if idleSeconds < threshold {
-                    let credit = snapshot.pausedAt.map { now.timeIntervalSince($0) } ?? 0
+                    // The user was already idle for `threshold` seconds before the pause began
+                    let credit = (snapshot.pausedAt.map { now.timeIntervalSince($0) } ?? 0) + threshold
                     return applyIdleCredit(credit: credit, snapshot: snapshot, settings: settings)
                 }
                 return (.paused(reason: .idle, frozen: snapshot), [])
@@ -212,7 +231,10 @@ public enum BreakScheduler {
 
     private static func resumeSnapshot(_ snapshot: PausedSnapshot) -> (TimerState, [SchedulerEffect]) {
         if let kind = snapshot.preBreakKind {
-            return (.preBreak(kind: kind, remaining: snapshot.remaining, shortBreaksSinceLong: snapshot.shortBreaksSinceLong), [.stateChanged])
+            return (
+                .preBreak(kind: kind, remaining: snapshot.remaining, shortBreaksSinceLong: snapshot.shortBreaksSinceLong),
+                [.scheduleNotification(kind: kind, leadSeconds: max(0, snapshot.remaining)), .stateChanged]
+            )
         } else {
             return (.working(remaining: snapshot.remaining, shortBreaksSinceLong: snapshot.shortBreaksSinceLong), [.stateChanged])
         }

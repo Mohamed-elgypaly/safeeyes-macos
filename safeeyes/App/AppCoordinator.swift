@@ -79,7 +79,7 @@ final class AppCoordinator {
         self.settingsWindowController = settingsWC
 
         // Install menu bar controller
-        let menuBar = MenuBarController(timer: timerManager) { [weak self] in
+        let menuBar = MenuBarController(timer: timerManager, settings: settingsManager) { [weak self] in
             self?.openSettings()
         }
         menuBar.install()

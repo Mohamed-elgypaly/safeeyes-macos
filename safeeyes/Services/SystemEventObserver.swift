@@ -11,6 +11,7 @@ import os
 public final class SystemEventObserver {
     private let timerManager: TimerManager
     private var sleepStartDate: Date?
+    private var isScreenLocked = false
     private var wsObservers: [NSObjectProtocol] = []
     private var distObservers: [NSObjectProtocol] = []
 
@@ -72,6 +73,20 @@ public final class SystemEventObserver {
             }
         })
 
+        // 3b. Screens Did Wake: display sleep without a lock never posts screenIsUnlocked,
+        // so without this the timer would stay paused forever.
+        wsObservers.append(wsCenter.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, !self.isScreenLocked else { return }
+                Log.timer.info("Screens did wake (not locked)")
+                self.timerManager.send(.screenUnlocked)
+            }
+        })
+
         // 4. Screen Locked (macOS DistributedNotificationCenter)
         distObservers.append(distCenter.addObserver(
             forName: NSNotification.Name("com.apple.screenIsLocked"),
@@ -80,6 +95,7 @@ public final class SystemEventObserver {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 Log.timer.info("Screen locked distributed notification received")
+                self?.isScreenLocked = true
                 self?.timerManager.send(.screenLocked)
             }
         })
@@ -92,6 +108,7 @@ public final class SystemEventObserver {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 Log.timer.info("Screen unlocked distributed notification received")
+                self?.isScreenLocked = false
                 self?.timerManager.send(.screenUnlocked)
             }
         })

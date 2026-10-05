@@ -253,4 +253,74 @@ final class BreakSchedulerTests: XCTestCase {
         XCTAssertEqual(resumedState, .working(remaining: 500, shortBreaksSinceLong: 1))
         XCTAssertEqual(effects, [.stateChanged])
     }
+
+    // MARK: - Regression tests from code review
+
+    func testUserPauseSurvivesSleepAndWake() {
+        let working = TimerState.working(remaining: 500, shortBreaksSinceLong: 1)
+        let (paused, _) = BreakScheduler.reduce(state: working, event: .userPause(duration: nil), settings: settings, now: baseDate)
+
+        let (afterSleep, _) = BreakScheduler.reduce(state: paused, event: .systemWillSleep, settings: settings, now: baseDate)
+        XCTAssertEqual(afterSleep, paused)
+
+        let (afterWake, _) = BreakScheduler.reduce(
+            state: afterSleep,
+            event: .systemDidWake(sleptFor: 3600),
+            settings: settings,
+            now: baseDate.addingTimeInterval(3600)
+        )
+        XCTAssertEqual(afterWake, paused)
+    }
+
+    func testWakeCreditsOnlyOnceWhenTickGapArrivesFirst() {
+        let working = TimerState.working(remaining: 500, shortBreaksSinceLong: 1)
+        let (sleeping, _) = BreakScheduler.reduce(state: working, event: .systemWillSleep, settings: settings, now: baseDate)
+
+        // The post-wake tick may observe the clock gap before the wake notification is delivered
+        let (afterGap, _) = BreakScheduler.reduce(state: sleeping, event: .idleCredit(600), settings: settings, now: baseDate.addingTimeInterval(600))
+        XCTAssertEqual(afterGap, sleeping)
+
+        let (awake, _) = BreakScheduler.reduce(
+            state: afterGap,
+            event: .systemDidWake(sleptFor: 600),
+            settings: settings,
+            now: baseDate.addingTimeInterval(600)
+        )
+        XCTAssertEqual(awake, .working(remaining: 900, shortBreaksSinceLong: 0)) // 600s >= long break: full reset, not +2
+
+        // A second wake with nothing paused is a no-op
+        let (again, effects) = BreakScheduler.reduce(state: awake, event: .systemDidWake(sleptFor: 600), settings: settings, now: baseDate.addingTimeInterval(601))
+        XCTAssertEqual(again, awake)
+        XCTAssertTrue(effects.isEmpty)
+    }
+
+    func testIdleResumeCreditIncludesIdleThreshold() {
+        let working = TimerState.working(remaining: 500, shortBreaksSinceLong: 1)
+        let (idlePaused, _) = BreakScheduler.reduce(state: working, event: .tick(elapsed: 1, idleSeconds: 10), settings: settings, now: baseDate)
+
+        // Input returns 5s after the pause began: 5s + 10s idle lead-in = 15s = short break duration
+        let (resumed, _) = BreakScheduler.reduce(
+            state: idlePaused,
+            event: .tick(elapsed: 1, idleSeconds: 0),
+            settings: settings,
+            now: baseDate.addingTimeInterval(5)
+        )
+        XCTAssertEqual(resumed, .working(remaining: 900, shortBreaksSinceLong: 2))
+    }
+
+    func testResumingPreBreakReschedulesNotification() {
+        let pre = TimerState.preBreak(kind: .short, remaining: 8, shortBreaksSinceLong: 0)
+        let (paused, _) = BreakScheduler.reduce(state: pre, event: .userPause(duration: nil), settings: settings, now: baseDate)
+        let (resumed, effects) = BreakScheduler.reduce(state: paused, event: .resume, settings: settings, now: baseDate)
+
+        XCTAssertEqual(resumed, pre)
+        XCTAssertEqual(effects, [.scheduleNotification(kind: .short, leadSeconds: 8), .stateChanged])
+    }
+
+    func testDisabledStateIgnoresLockAndWake() {
+        let (locked, _) = BreakScheduler.reduce(state: .disabled, event: .screenLocked, settings: settings, now: baseDate)
+        XCTAssertEqual(locked, .disabled)
+        let (unlocked, _) = BreakScheduler.reduce(state: locked, event: .screenUnlocked, settings: settings, now: baseDate)
+        XCTAssertEqual(unlocked, .disabled)
+    }
 }

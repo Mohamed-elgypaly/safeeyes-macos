@@ -15,27 +15,27 @@ targets:
     platform: macOS
     deploymentTarget: "13.0"
     sources:
-      - path: SafeEyes/App
-      - path: SafeEyes/Core
-      - path: SafeEyes/Services
-      - path: SafeEyes/Controllers
-      - path: SafeEyes/ViewModels
-      - path: SafeEyes/Views
-      - path: SafeEyes/Resources
-      - path: SafeEyes/Support
+      - path: safeeyes/App
+      - path: safeeyes/Core
+      - path: safeeyes/Services
+      - path: safeeyes/Controllers
+      - path: safeeyes/ViewModels
+      - path: safeeyes/Views
+      - path: safeeyes/Resources
+      - path: safeeyes/Support
     info:
-      path: SafeEyes/Support/Info.plist
+      path: safeeyes/Support/Info.plist
       properties:
         LSUIElement: true   # Hide from Dock and Cmd+Tab (pure menu-bar agent)
     entitlements:
-      path: SafeEyes/Support/SafeEyes.entitlements
+      path: safeeyes/Support/SafeEyes.entitlements
     settings:
       base:
         PRODUCT_NAME: SafeEyes
         PRODUCT_BUNDLE_IDENTIFIER: com.safeeyes.app
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: SafeEyes/Support/Info.plist
-        CODE_SIGN_ENTITLEMENTS: SafeEyes/Support/SafeEyes.entitlements
+        INFOPLIST_FILE: safeeyes/Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: safeeyes/Support/SafeEyes.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

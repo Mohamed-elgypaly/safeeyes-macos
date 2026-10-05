@@ -52,12 +52,9 @@ public final class NotificationService: NSObject, NotificationScheduling, UNUser
         content.sound = .default
         content.categoryIdentifier = Self.categoryIdentifier
 
-        let trigger: UNNotificationTrigger?
-        if leadSeconds > 1.0 {
-            trigger = UNTimeIntervalNotificationTrigger(timeInterval: leadSeconds, repeats: false)
-        } else {
-            trigger = nil
-        }
+        // Deliver immediately: this is called when the pre-break phase *starts*. A delayed trigger
+        // would fire at break start and be cancelled by the break's own .cancelNotification.
+        let trigger: UNNotificationTrigger? = nil
 
         let request = UNNotificationRequest(
             identifier: Self.notificationIdentifier,

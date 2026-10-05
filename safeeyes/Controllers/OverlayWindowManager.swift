@@ -21,6 +21,7 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
     private var resignActiveObserver: NSObjectProtocol?
     private var screenChangeObserver: NSObjectProtocol?
     private var emergencyExitTimer: Timer?
+    private var screenRebuildTask: Task<Void, Never>?
 
     public init(settingsManager: SettingsStoring) {
         self.settingsManager = settingsManager
@@ -59,28 +60,35 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             disableStrictMode()
         }
 
+        // Detach the windows being closed BEFORE animating. If show() runs again during the fade,
+        // the completion handler must only tear down these old windows, never the new ones.
+        let closing = windows
+        windows = []
+        let previous = previousFrontmostApp
+        previousFrontmostApp = nil
+
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let fadeDuration: TimeInterval = reduceMotion ? 0.0 : 0.3
 
-        if fadeDuration > 0 {
+        if fadeDuration > 0 && !closing.isEmpty {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = fadeDuration
-                for window in windows {
+                for window in closing {
                     window.animator().alphaValue = 0.0
                 }
             }, completionHandler: { [weak self] in
                 Task { @MainActor [weak self] in
-                    self?.teardownWindows()
+                    self?.finishHide(closing, restoring: previous)
                 }
             })
         } else {
-            teardownWindows()
+            finishHide(closing, restoring: previous)
         }
     }
 
     // MARK: - Window Management
 
-    private func buildWindows() {
+    private func buildWindows(animated: Bool = true) {
         guard let timerManager = timerManager else {
             Log.overlay.error("Cannot build windows: timerManager is nil")
             return
@@ -93,7 +101,7 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             ?? NSScreen.screens.first
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        let fadeDuration: TimeInterval = reduceMotion ? 0.0 : 0.3
+        let fadeDuration: TimeInterval = (reduceMotion || !animated) ? 0.0 : 0.3
 
         var newWindows: [BreakWindow] = []
 
@@ -142,20 +150,17 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
         }
     }
 
-    private func teardownWindows() {
-        for window in windows {
+    private func finishHide(_ closing: [BreakWindow], restoring previous: NSRunningApplication?) {
+        for window in closing {
             window.teardown()
         }
-        windows.removeAll()
 
-        // Restore focus to previous frontmost application
-        if let previous = previousFrontmostApp {
-            if #available(macOS 14.0, *) {
-                previous.activate()
-            } else {
-                previous.activate(options: .activateIgnoringOtherApps)
-            }
-            previousFrontmostApp = nil
+        // Don't steal focus back if a new break started while we were fading out
+        guard !isBreakActive, let previous = previous else { return }
+        if #available(macOS 14.0, *) {
+            previous.activate()
+        } else {
+            previous.activate(options: .activateIgnoringOtherApps)
         }
     }
 
@@ -163,13 +168,12 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
         guard isBreakActive else { return }
         Log.overlay.info("Rebuilding overlay windows for screen parameter change")
 
-        // Destroy previous windows immediately and recreate for new screen set
         for window in windows {
             window.teardown()
         }
         windows.removeAll()
 
-        buildWindows()
+        buildWindows(animated: false)
     }
 
     private func activateApp() {
@@ -228,37 +232,48 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             resignActiveObserver = nil
         }
 
-        emergencyExitTimer?.invalidate()
-        emergencyExitTimer = nil
+        cancelEmergencyTimer()
     }
 
     private func handleStrictKeyEvent(_ event: NSEvent) -> NSEvent? {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let isEmergencyModifiers = flags.contains([.option, .command, .shift])
-        let isKeyE = (event.keyCode == 14) // 14 is QWERTY 'E' key code on macOS
+        let isKeyE = (event.keyCode == 14) // QWERTY 'E'
 
         if isEmergencyModifiers && isKeyE {
-            if event.type == .keyDown && emergencyExitTimer == nil {
-                Log.overlay.warning("Emergency exit shortcut pressed, starting 5s hold timer")
-                emergencyExitTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        Log.overlay.warning("Emergency exit held for 5s: force-skipping break")
-                        self?.timerManager?.send(.skipBreak(force: true))
+            switch event.type {
+            case .keyDown:
+                if emergencyExitTimer == nil {
+                    Log.overlay.warning("Emergency exit shortcut pressed, starting 5s hold timer")
+                    emergencyExitTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+                        Task { @MainActor [weak self] in
+                            Log.overlay.warning("Emergency exit held for 5s: force-skipping break")
+                            self?.emergencyExitTimer = nil
+                            self?.timerManager?.send(.skipBreak(force: true))
+                        }
                     }
                 }
+            case .keyUp:
+                // Releasing E before 5s must cancel the hold
+                cancelEmergencyTimer()
+            default:
+                break
             }
             return nil
         }
 
-        // Any other key release or change cancels the emergency timer
-        if emergencyExitTimer != nil {
-            emergencyExitTimer?.invalidate()
-            emergencyExitTimer = nil
-            Log.overlay.debug("Emergency exit shortcut released before 5s")
-        }
+        // Any other key activity or modifier change cancels the hold
+        cancelEmergencyTimer()
 
         // Swallow all input events in strict mode
         return nil
+    }
+
+    private func cancelEmergencyTimer() {
+        guard emergencyExitTimer != nil else { return }
+        emergencyExitTimer?.invalidate()
+        emergencyExitTimer = nil
+        Log.overlay.debug("Emergency exit shortcut released before 5s")
     }
 
     // MARK: - Screen Change Observation
@@ -270,12 +285,24 @@ public final class OverlayWindowManager: NSObject, OverlayPresenting {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.rebuildWindowsForScreenChange()
+                self?.scheduleScreenRebuild()
             }
         }
     }
 
+    /// Hot-plugging a display posts several notifications in quick succession; coalesce them.
+    private func scheduleScreenRebuild() {
+        screenRebuildTask?.cancel()
+        screenRebuildTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            self?.rebuildWindowsForScreenChange()
+        }
+    }
+
     private func stopScreenChangeObservation() {
+        screenRebuildTask?.cancel()
+        screenRebuildTask = nil
         if let observer = screenChangeObserver {
             NotificationCenter.default.removeObserver(observer)
             screenChangeObserver = nil

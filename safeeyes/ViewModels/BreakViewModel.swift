@@ -38,7 +38,7 @@ public final class BreakViewModel: ObservableObject {
         updateFromState(timerManager.state)
 
         timerManager.$state
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main) // RunLoop.main (default mode) stalls during event tracking
             .sink { [weak self] state in
                 self?.updateFromState(state)
             }

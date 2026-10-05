@@ -161,20 +161,17 @@ public final class SettingsViewModel: ObservableObject {
     }
 
     private func relaunchApplication() {
-        let bundleURL = Bundle.main.bundleURL
-        let config = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.openApplication(at: bundleURL, configuration: config) { _, _ in
-            DispatchQueue.main.async {
-                NSApp.terminate(nil)
-            }
-        }
-        // Fallback for command line execution
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            process.arguments = ["-n", Bundle.main.bundlePath]
-            try? process.run()
+        // Spawn a detached helper that outlives us, then quit. (Calling openApplication on our own
+        // bundle just re-activates the running instance, and a delayed fallback never fires once
+        // terminate() has run.)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "sleep 1; /usr/bin/open -n \"$0\"", Bundle.main.bundlePath]
+        do {
+            try process.run()
             NSApp.terminate(nil)
+        } catch {
+            Log.app.error("Failed to relaunch: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -260,13 +257,11 @@ public final class SettingsViewModel: ObservableObject {
         pullFromSettings()
         reconcileLoginItem()
 
-        if selectedLanguage != "system" {
-            isPulling = true
-            selectedLanguage = "system"
-            UserDefaults.standard.removeObject(forKey: Self.appleLanguagesKey)
-            UserDefaults.standard.synchronize()
-            isPulling = false
-        }
+        UserDefaults.standard.removeObject(forKey: Self.appLanguageKey)
+        UserDefaults.standard.removeObject(forKey: Self.appleLanguagesKey)
+        isPulling = true
+        appLanguage = Self.detectInitialLanguage()
+        isPulling = false
     }
 
     /// Formatted display of long break duration in minutes

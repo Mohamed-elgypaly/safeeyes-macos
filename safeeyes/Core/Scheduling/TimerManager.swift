@@ -101,7 +101,8 @@ public final class TimerManager: ObservableObject {
         }
 
         let currentNow = time.now
-        let elapsed = currentNow.timeIntervalSince(previous)
+        // Wall-clock can jump backwards (NTP / manual change); never let that add time back
+        let elapsed = max(0, currentNow.timeIntervalSince(previous))
         lastTickDate = currentNow
 
         if elapsed > 5.0 {
